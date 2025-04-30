@@ -1,13 +1,26 @@
 package config
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
+	Server  Server
 	Storage Storage
+	Logger  Logger
+}
+
+type Server struct {
+	Port int
 }
 
 type Storage struct {
-	Shards     int
-	GCInterval time.Duration
-	GCBudget   time.Duration
+	PartionsNumber int
+	GCInterval     time.Duration
+	GCBudget       time.Duration
+}
+
+type Logger struct {
+	Level    string
+	FilePath string
 }

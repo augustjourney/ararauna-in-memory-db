@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"ararauna/internal/config"
 	"ararauna/internal/errs"
+	"ararauna/internal/toolbox"
 	"context"
 	"hash/fnv"
 	"sync"
@@ -34,8 +34,8 @@ type Value struct {
 
 type Key string
 
-func New(ctx context.Context, cfg *config.Config) *store {
-	shards := make([]*_shard, cfg.Storage.Shards)
+func New(ctx context.Context, tb *toolbox.Toolbox) *store {
+	shards := make([]*_shard, tb.Cfg.Storage.PartionsNumber)
 
 	for idx := range shards {
 		shards[idx] = &_shard{
@@ -43,18 +43,18 @@ func New(ctx context.Context, cfg *config.Config) *store {
 		}
 	}
 
-	interval := cfg.Storage.GCInterval
+	interval := tb.Cfg.Storage.GCInterval
 	if interval <= 0 {
 		interval = defaultGCInterval
 	}
-	budget := cfg.Storage.GCBudget
+	budget := tb.Cfg.Storage.GCBudget
 	if budget <= 0 {
 		budget = defaultGCBudget
 	}
 
 	s := &store{
 		shards:      shards,
-		shardsCount: cfg.Storage.Shards,
+		shardsCount: tb.Cfg.Storage.PartionsNumber,
 		gcInterval:  interval,
 		gcBudget:    budget,
 	}

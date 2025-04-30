@@ -3,6 +3,7 @@ package storage
 import (
 	"ararauna/internal/config"
 	"ararauna/internal/errs"
+	"ararauna/internal/toolbox"
 	"ararauna/pkg/ptr"
 	"context"
 	"fmt"
@@ -12,13 +13,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func newTestStorage(t *testing.T) *store {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	return New(ctx, &config.Config{Storage: config.Storage{Shards: 4}})
+	tb := &toolbox.Toolbox{
+		Cfg:    &config.Config{Storage: config.Storage{PartionsNumber: 4}},
+		Logger: zap.NewNop(),
+	}
+	return New(ctx, tb)
 }
 
 func (s *store) totalKeys() int {
@@ -203,14 +209,17 @@ func TestGC_TickRespectsCtxCancel(t *testing.T) {
 }
 
 func TestGC_BackgroundWorkerCleansExpired(t *testing.T) {
-	cfg := &config.Config{Storage: config.Storage{
-		Shards:     4,
-		GCInterval: 10 * time.Millisecond,
-		GCBudget:   5 * time.Millisecond,
-	}}
+	tb := &toolbox.Toolbox{
+		Cfg: &config.Config{Storage: config.Storage{
+			PartionsNumber: 4,
+			GCInterval:     10 * time.Millisecond,
+			GCBudget:       5 * time.Millisecond,
+		}},
+		Logger: zap.NewNop(),
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	s := New(ctx, cfg)
+	s := New(ctx, tb)
 
 	past := time.Now().Add(-time.Hour)
 	for i := range 50 {
