@@ -22,6 +22,14 @@ type store struct {
 	gcCursor    int
 }
 
+type Storage interface {
+	Get(ctx context.Context, key string) (*Value, error)
+	Set(ctx context.Context, key string, value []byte, expiresAt *time.Time) error
+	Del(ctx context.Context, key string) (string, error)
+}
+
+var _ Storage = (*store)(nil)
+
 type _shard struct {
 	mu   sync.RWMutex
 	data map[Key]Value
