@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-const (
-	defaultGCInterval = 100 * time.Millisecond
-	defaultGCBudget   = 50 * time.Millisecond
-)
-
 type store struct {
 	shardsCount int
 	shards      []*_shard
@@ -43,7 +38,7 @@ type Value struct {
 type Key string
 
 func New(ctx context.Context, tb *toolbox.Toolbox) *store {
-	shards := make([]*_shard, tb.Cfg.Storage.PartionsNumber)
+	shards := make([]*_shard, tb.Cfg.Storage.PartitionsNumber)
 
 	for idx := range shards {
 		shards[idx] = &_shard{
@@ -51,20 +46,11 @@ func New(ctx context.Context, tb *toolbox.Toolbox) *store {
 		}
 	}
 
-	interval := tb.Cfg.Storage.GCInterval
-	if interval <= 0 {
-		interval = defaultGCInterval
-	}
-	budget := tb.Cfg.Storage.GCBudget
-	if budget <= 0 {
-		budget = defaultGCBudget
-	}
-
 	s := &store{
 		shards:      shards,
-		shardsCount: tb.Cfg.Storage.PartionsNumber,
-		gcInterval:  interval,
-		gcBudget:    budget,
+		shardsCount: tb.Cfg.Storage.PartitionsNumber,
+		gcInterval:  tb.Cfg.Storage.GCInterval,
+		gcBudget:    tb.Cfg.Storage.GCBudget,
 	}
 
 	go s.runGC(ctx)

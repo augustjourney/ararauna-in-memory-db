@@ -10,3 +10,10 @@ type Toolbox struct {
 	Cfg    *config.Config
 	Logger *zap.Logger
 }
+
+func New(cfg *config.Config, logger *zap.Logger) *Toolbox {
+	return &Toolbox{
+		Cfg:    cfg,
+		Logger: logger,
+	}
+}

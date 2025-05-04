@@ -20,10 +20,9 @@ func newTestStorage(t *testing.T) *store {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tb := &toolbox.Toolbox{
-		Cfg:    &config.Config{Storage: config.Storage{PartionsNumber: 4}},
-		Logger: zap.NewNop(),
-	}
+	cfg := config.Default()
+	cfg.Storage.PartitionsNumber = 4
+	tb := toolbox.New(cfg, zap.NewNop())
 	return New(ctx, tb)
 }
 
@@ -209,14 +208,11 @@ func TestGC_TickRespectsCtxCancel(t *testing.T) {
 }
 
 func TestGC_BackgroundWorkerCleansExpired(t *testing.T) {
-	tb := &toolbox.Toolbox{
-		Cfg: &config.Config{Storage: config.Storage{
-			PartionsNumber: 4,
-			GCInterval:     10 * time.Millisecond,
-			GCBudget:       5 * time.Millisecond,
-		}},
-		Logger: zap.NewNop(),
-	}
+	cfg := config.Default()
+	cfg.Storage.PartitionsNumber = 4
+	cfg.Storage.GCInterval = 10 * time.Millisecond
+	cfg.Storage.GCBudget = 5 * time.Millisecond
+	tb := toolbox.New(cfg, zap.NewNop())
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	s := New(ctx, tb)

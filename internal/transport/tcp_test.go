@@ -23,13 +23,10 @@ func startTestServer(t *testing.T) (*Server, net.Conn) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	tb := &toolbox.Toolbox{
-		Cfg: &config.Config{
-			Server:  config.Server{Port: 0},
-			Storage: config.Storage{PartionsNumber: 4},
-		},
-		Logger: zap.NewNop(),
-	}
+	cfg := config.Default()
+	cfg.Server.Port = 0
+	cfg.Storage.PartitionsNumber = 4
+	tb := toolbox.New(cfg, zap.NewNop())
 	store := storage.New(ctx, tb)
 	h := command.New(tb, store)
 	srv := New(tb, h)

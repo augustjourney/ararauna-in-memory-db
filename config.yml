@@ -1,0 +1,11 @@
+server:
+  port: 6379
+
+storage:
+  partitions_number: 16
+  gc_interval: 100ms
+  gc_budget: 50ms
+
+logger:
+  level: info
+  file_path: ./ararauna.log

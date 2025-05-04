@@ -17,10 +17,9 @@ func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tb := &toolbox.Toolbox{
-		Cfg:    &config.Config{Storage: config.Storage{PartionsNumber: 4}},
-		Logger: zap.NewNop(),
-	}
+	cfg := config.Default()
+	cfg.Storage.PartitionsNumber = 4
+	tb := toolbox.New(cfg, zap.NewNop())
 	s := storage.New(ctx, tb)
 	return New(tb, s)
 }
