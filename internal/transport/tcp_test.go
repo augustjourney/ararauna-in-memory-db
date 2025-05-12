@@ -26,8 +26,10 @@ func startTestServer(t *testing.T) (*Server, net.Conn) {
 	cfg := config.Default()
 	cfg.Server.Port = 0
 	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Enabled = false
 	tb := toolbox.New(cfg, zap.NewNop())
-	store := storage.New(ctx, tb)
+	store, err := storage.New(ctx, tb, nil)
+	require.NoError(t, err)
 	h := command.New(tb, store)
 	srv := New(tb, h)
 

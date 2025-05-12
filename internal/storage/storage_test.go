@@ -4,6 +4,7 @@ import (
 	"ararauna/internal/config"
 	"ararauna/internal/errs"
 	"ararauna/internal/toolbox"
+	"ararauna/internal/wal"
 	"ararauna/pkg/ptr"
 	"context"
 	"fmt"
@@ -22,8 +23,11 @@ func newTestStorage(t *testing.T) *store {
 	t.Cleanup(cancel)
 	cfg := config.Default()
 	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Enabled = false
 	tb := toolbox.New(cfg, zap.NewNop())
-	return New(ctx, tb)
+	s, err := New(ctx, tb, nil)
+	require.NoError(t, err)
+	return s
 }
 
 func (s *store) totalKeys() int {
@@ -212,10 +216,12 @@ func TestGC_BackgroundWorkerCleansExpired(t *testing.T) {
 	cfg.Storage.PartitionsNumber = 4
 	cfg.Storage.GCInterval = 10 * time.Millisecond
 	cfg.Storage.GCBudget = 5 * time.Millisecond
+	cfg.WAL.Enabled = false
 	tb := toolbox.New(cfg, zap.NewNop())
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	s := New(ctx, tb)
+	s, err := New(ctx, tb, nil)
+	require.NoError(t, err)
 
 	past := time.Now().Add(-time.Hour)
 	for i := range 50 {
@@ -256,4 +262,50 @@ func TestConcurrentSetGet(t *testing.T) {
 		}(g)
 	}
 	wg.Wait()
+}
+
+func TestWALRecovery(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Default()
+	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Dir = dir
+	cfg.WAL.SegmentSize = 256
+	cfg.WAL.SyncPolicy = "always"
+	tb := toolbox.New(cfg, zap.NewNop())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	w1, err := wal.New(tb)
+	require.NoError(t, err)
+	s1, err := New(ctx, tb, w1)
+	require.NoError(t, err)
+
+	require.NoError(t, s1.Set(ctx, "foo", []byte("bar"), nil))
+	require.NoError(t, s1.Set(ctx, "hello", []byte("world"), nil))
+	exp := time.Unix(0, time.Now().Add(time.Hour).UnixNano())
+	require.NoError(t, s1.Set(ctx, "ttl", []byte("v"), &exp))
+	_, err = s1.Del(ctx, "hello")
+	require.NoError(t, err)
+
+	require.NoError(t, w1.Close())
+
+	w2, err := wal.New(tb)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w2.Close() })
+	s2, err := New(ctx, tb, w2)
+	require.NoError(t, err)
+
+	got, err := s2.Get(ctx, "foo")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("bar"), got.Data)
+
+	_, err = s2.Get(ctx, "hello")
+	assert.ErrorIs(t, err, errs.ErrNotFound)
+
+	got, err = s2.Get(ctx, "ttl")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("v"), got.Data)
+	require.NotNil(t, got.ExpiresAt)
+	assert.Equal(t, exp.UnixNano(), got.ExpiresAt.UnixNano())
 }

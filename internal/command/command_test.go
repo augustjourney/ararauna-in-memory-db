@@ -15,20 +15,29 @@ import (
 
 func newTestHandler(t *testing.T) *Handler {
 	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+
 	cfg := config.Default()
 	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Enabled = false
+
 	tb := toolbox.New(cfg, zap.NewNop())
-	s := storage.New(ctx, tb)
+	s, err := storage.New(ctx, tb, nil)
+
+	require.NoError(t, err)
+
 	return New(tb, s)
 }
 
 func cmd(parts ...string) parser.Value {
 	items := make([]parser.Value, len(parts))
+
 	for i, p := range parts {
 		items[i] = parser.Bulk([]byte(p))
 	}
+
 	return parser.Array(items)
 }
 
@@ -79,6 +88,7 @@ func TestDispatch_CaseInsensitive(t *testing.T) {
 func TestDispatch_UnknownCommand(t *testing.T) {
 	d := newTestHandler(t)
 	resp := d.Dispatch(context.Background(), cmd("FOO", "bar"))
+
 	assert.Equal(t, parser.KindError, resp.Kind)
 	assert.Contains(t, resp.Str, "unknown command")
 	assert.Contains(t, resp.Str, "foo")
@@ -100,6 +110,7 @@ func TestDispatch_WrongArity(t *testing.T) {
 		{"set too many", cmd("SET", "k", "v", "EX", "10")},
 		{"del no args", cmd("DEL")},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := d.Dispatch(ctx, tc.req)
@@ -122,6 +133,7 @@ func TestDispatch_InvalidRequest(t *testing.T) {
 		{"null array", parser.Value{Kind: parser.KindArray, Null: true}},
 		{"non-bulk element", parser.Array([]parser.Value{parser.Integer(1)})},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := d.Dispatch(ctx, tc.req)

@@ -13,10 +13,12 @@ type Config struct {
 	Server  Server  `yaml:"server"`
 	Storage Storage `yaml:"storage"`
 	Logger  Logger  `yaml:"logger"`
+	WAL     WAL     `yaml:"wal"`
 }
 
 type Server struct {
-	Port int `yaml:"port"`
+	Port            int           `yaml:"port"`
+	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
 }
 
 type Storage struct {
@@ -30,10 +32,18 @@ type Logger struct {
 	FilePath string `yaml:"file_path"`
 }
 
+type WAL struct {
+	Enabled     bool   `yaml:"enabled"`
+	Dir         string `yaml:"dir"`
+	SegmentSize int64  `yaml:"segment_size"`
+	SyncPolicy  string `yaml:"sync_policy"`
+}
+
 func Default() *Config {
 	return &Config{
 		Server: Server{
-			Port: 6379,
+			Port:            6379,
+			ShutdownTimeout: 5 * time.Second,
 		},
 		Storage: Storage{
 			PartitionsNumber: 16,
@@ -42,6 +52,12 @@ func Default() *Config {
 		},
 		Logger: Logger{
 			Level: "info",
+		},
+		WAL: WAL{
+			Enabled:     true,
+			Dir:         "./data/wal",
+			SegmentSize: 16 * 1024 * 1024,
+			SyncPolicy:  "always",
 		},
 	}
 }
@@ -73,6 +89,22 @@ func (c *Config) validate() error {
 	}
 	if c.Storage.GCBudget <= 0 {
 		return errors.New("config: storage.gc_budget must be > 0")
+	}
+	if c.Server.ShutdownTimeout <= 0 {
+		return errors.New("config: server.shutdown_timeout must be > 0")
+	}
+	if c.WAL.Enabled {
+		if c.WAL.Dir == "" {
+			return errors.New("config: wal.dir must be set when wal.enabled is true")
+		}
+		if c.WAL.SegmentSize <= 0 {
+			return errors.New("config: wal.segment_size must be > 0")
+		}
+		switch c.WAL.SyncPolicy {
+		case "always", "everysec", "no":
+		default:
+			return fmt.Errorf("config: wal.sync_policy must be one of always|everysec|no, got %q", c.WAL.SyncPolicy)
+		}
 	}
 	return nil
 }

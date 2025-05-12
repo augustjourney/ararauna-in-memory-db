@@ -1,5 +1,6 @@
 server:
   port: 6379
+  shutdown_timeout: 5s
 
 storage:
   partitions_number: 16
@@ -9,3 +10,9 @@ storage:
 logger:
   level: info
   file_path: ./ararauna.log
+
+wal:
+  enabled: true
+  dir: ./data/wal
+  segment_size: 16777216 # 16MB
+  sync_policy: always
