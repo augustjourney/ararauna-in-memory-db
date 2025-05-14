@@ -70,10 +70,10 @@ func New(ctx context.Context, tb *toolbox.Toolbox, w *wal.Writer) (*store, error
 	return s, nil
 }
 
-func (c *store) getShardId(key string) int {
+func (s *store) getShardId(key string) int {
 	h := fnv.New32()
 	h.Write([]byte(key))
-	return int(h.Sum32()) % c.shardsCount
+	return int(h.Sum32()) % s.shardsCount
 }
 
 func (s *store) Get(ctx context.Context, key string) (*Value, error) {
@@ -88,13 +88,16 @@ func (s *store) Get(ctx context.Context, key string) (*Value, error) {
 	shard.mu.RUnlock()
 
 	if !found {
+		s.tb.Metrics.IncGetMiss()
 		return nil, errs.ErrNotFound
 	}
 
 	if value.ExpiresAt != nil && time.Now().After(*value.ExpiresAt) {
+		s.tb.Metrics.IncGetExpired()
 		return nil, errs.ErrNotFound
 	}
 
+	s.tb.Metrics.IncGetHit()
 	return &value, nil
 }
 
@@ -115,6 +118,7 @@ func (s *store) Set(ctx context.Context, key string, value []byte, expiresAt *ti
 	}
 
 	s.applySet(key, value, expiresAt)
+	s.tb.Metrics.IncSet(expiresAt != nil)
 
 	return nil
 }
@@ -143,6 +147,7 @@ func (s *store) Del(ctx context.Context, key string) (string, error) {
 	delete(shard.data, Key(key))
 	shard.mu.Unlock()
 
+	s.tb.Metrics.IncDel()
 	return key, nil
 }
 
@@ -252,6 +257,8 @@ func (s *store) gcSweepShard(idx int, done <-chan struct{}) {
 	defer shard.mu.Unlock()
 
 	now := time.Now()
+	var evicted int64
+	defer func() { s.tb.Metrics.AddGCEvicted(evicted) }()
 
 	for key, value := range shard.data {
 		select {
@@ -261,6 +268,7 @@ func (s *store) gcSweepShard(idx int, done <-chan struct{}) {
 		}
 		if value.ExpiresAt != nil && now.After(*value.ExpiresAt) {
 			delete(shard.data, key)
+			evicted++
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Handler struct {
@@ -33,18 +34,22 @@ func (d *Handler) Dispatch(ctx context.Context, req parser.Value) parser.Value {
 	name := strings.ToUpper(string(req.Array[0].Bulk))
 	args := req.Array[1:]
 
+	start := time.Now()
+	var resp parser.Value
 	switch name {
 	case "PING":
-		return d.ping(args)
+		resp = d.ping(args)
 	case "GET":
-		return d.get(ctx, args)
+		resp = d.get(ctx, args)
 	case "SET":
-		return d.set(ctx, args)
+		resp = d.set(ctx, args)
 	case "DEL":
-		return d.del(ctx, args)
+		resp = d.del(ctx, args)
 	default:
-		return parser.Error(fmt.Sprintf("ERR unknown command '%s'", strings.ToLower(name)))
+		resp = parser.Error(fmt.Sprintf("ERR unknown command '%s'", strings.ToLower(name)))
 	}
+	d.tb.Metrics.ObserveCommand(name, time.Since(start), resp.Kind == parser.KindError)
+	return resp
 }
 
 func (d *Handler) ping(args []parser.Value) parser.Value {

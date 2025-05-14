@@ -116,6 +116,7 @@ func (w *Writer) Append(rec parser.Value) error {
 	if w == nil {
 		return nil
 	}
+	start := time.Now()
 
 	var buf bytes.Buffer
 	if err := parser.Encode(rec, &buf); err != nil {
@@ -139,16 +140,21 @@ func (w *Writer) Append(rec parser.Value) error {
 
 	w.size += int64(len(payload))
 	w.dirty = true
+	w.tb.Metrics.IncWALAppend()
+	w.tb.Metrics.AddWALBytes(int64(len(payload)))
 
 	if err := w.bufw.Flush(); err != nil {
 		return fmt.Errorf("wal: flush: %w", err)
 	}
 
 	if w.syncPolicy == SyncAlways {
+		syncStart := time.Now()
 		if err := w.file.Sync(); err != nil {
 			return fmt.Errorf("wal: fsync: %w", err)
 		}
 		w.dirty = false
+		w.tb.Metrics.IncWALFsync()
+		w.tb.Metrics.ObserveWALFsync(time.Since(syncStart))
 	}
 
 	if w.size >= w.segmentSize {
@@ -156,6 +162,7 @@ func (w *Writer) Append(rec parser.Value) error {
 			return fmt.Errorf("wal: rotate: %w", err)
 		}
 	}
+	w.tb.Metrics.ObserveWALAppend(time.Since(start))
 	return nil
 }
 
@@ -262,7 +269,11 @@ func (w *Writer) rotateLocked() error {
 	w.bufw = nil
 	w.size = 0
 
-	return w.openNextSegmentLocked()
+	if err := w.openNextSegmentLocked(); err != nil {
+		return err
+	}
+	w.tb.Metrics.IncWALSegment()
+	return nil
 }
 
 func (w *Writer) runEverysec() {
@@ -278,10 +289,13 @@ func (w *Writer) runEverysec() {
 		case <-ticker.C:
 			w.mu.Lock()
 			if w.dirty && w.file != nil {
+				syncStart := time.Now()
 				if err := w.file.Sync(); err != nil {
 					w.tb.Logger.Warn("wal: background fsync failed", zap.Error(err))
 				} else {
 					w.dirty = false
+					w.tb.Metrics.IncWALFsync()
+					w.tb.Metrics.ObserveWALFsync(time.Since(syncStart))
 				}
 			}
 			w.mu.Unlock()

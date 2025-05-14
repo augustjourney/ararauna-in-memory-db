@@ -16,3 +16,12 @@ wal:
   dir: ./data/wal
   segment_size: 16777216 # 16MB
   sync_policy: always
+
+metrics:
+  enabled: true
+  provider: victoriametrics
+  push_url: "http://localhost:8428/api/v1/import/prometheus"
+  job: ararauna
+  push_interval: 10s
+  extra_labels:
+    instance: ararauna-1

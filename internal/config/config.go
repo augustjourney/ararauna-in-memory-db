@@ -14,6 +14,7 @@ type Config struct {
 	Storage Storage `yaml:"storage"`
 	Logger  Logger  `yaml:"logger"`
 	WAL     WAL     `yaml:"wal"`
+	Metrics Metrics `yaml:"metrics"`
 }
 
 type Server struct {
@@ -39,6 +40,16 @@ type WAL struct {
 	SyncPolicy  string `yaml:"sync_policy"`
 }
 
+type Metrics struct {
+	Enabled      bool              `yaml:"enabled"`
+	Provider     string            `yaml:"provider"`
+	PushURL      string            `yaml:"push_url"`
+	Job          string            `yaml:"job"`
+	PushInterval time.Duration     `yaml:"push_interval"`
+	Timeout      time.Duration     `yaml:"timeout"`
+	ExtraLabels  map[string]string `yaml:"extra_labels"`
+}
+
 func Default() *Config {
 	return &Config{
 		Server: Server{
@@ -58,6 +69,12 @@ func Default() *Config {
 			Dir:         "./data/wal",
 			SegmentSize: 16 * 1024 * 1024,
 			SyncPolicy:  "always",
+		},
+		Metrics: Metrics{
+			Enabled:      false,
+			Provider:     "victoriametrics",
+			PushInterval: 10 * time.Second,
+			Job:          "ararauna",
 		},
 	}
 }
@@ -104,6 +121,22 @@ func (c *Config) validate() error {
 		case "always", "everysec", "no":
 		default:
 			return fmt.Errorf("config: wal.sync_policy must be one of always|everysec|no, got %q", c.WAL.SyncPolicy)
+		}
+	}
+	if c.Metrics.Enabled {
+		switch c.Metrics.Provider {
+		case "victoriametrics", "prometheus":
+		default:
+			return fmt.Errorf("config: metrics.provider must be one of victoriametrics|prometheus, got %q", c.Metrics.Provider)
+		}
+		if c.Metrics.PushURL == "" {
+			return errors.New("config: metrics.push_url must be set when metrics.enabled is true")
+		}
+		if c.Metrics.PushInterval <= 0 {
+			return errors.New("config: metrics.push_interval must be > 0")
+		}
+		if c.Metrics.Provider == "prometheus" && c.Metrics.Job == "" {
+			return errors.New("config: metrics.job must be set when metrics.provider is prometheus")
 		}
 	}
 	return nil

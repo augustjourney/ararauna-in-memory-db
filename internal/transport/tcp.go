@@ -52,6 +52,7 @@ func (s *Server) Start(ctx context.Context) error {
 			s.tb.Logger.Error("accept failed", zap.Error(err))
 			continue
 		}
+		s.tb.Metrics.IncConnAccepted()
 		s.wg.Add(1)
 		go s.handleConn(ctx, conn)
 	}
@@ -69,6 +70,8 @@ func (s *Server) Addr() net.Addr {
 func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	defer s.wg.Done()
 	defer conn.Close()
+	s.tb.Metrics.IncConnActive()
+	defer s.tb.Metrics.DecConnActive()
 
 	go func() {
 		<-ctx.Done()

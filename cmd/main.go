@@ -4,6 +4,7 @@ import (
 	"ararauna/internal/command"
 	"ararauna/internal/config"
 	"ararauna/internal/logger"
+	"ararauna/internal/metrics"
 	"ararauna/internal/storage"
 	"ararauna/internal/toolbox"
 	"ararauna/internal/transport"
@@ -39,6 +40,13 @@ func main() {
 	defer stop()
 
 	tb := toolbox.New(cfg, log)
+
+	metricsRec, err := metrics.New(cfg, log)
+	if err != nil {
+		log.Error("metrics init", zap.Error(err))
+		return
+	}
+	tb.Metrics = metricsRec
 
 	walWriter, err := wal.New(tb)
 	if err != nil {
@@ -84,6 +92,10 @@ func main() {
 
 	if err := walWriter.Close(); err != nil {
 		log.Error("wal close", zap.Error(err))
+	}
+
+	if err := metricsRec.Close(); err != nil {
+		log.Error("metrics close", zap.Error(err))
 	}
 
 	log.Info("shutdown complete")
