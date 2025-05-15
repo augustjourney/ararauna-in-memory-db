@@ -1,6 +1,7 @@
 server:
   port: 6379
   shutdown_timeout: 5s
+  max_connections: 1024
 
 storage:
   partitions_number: 16

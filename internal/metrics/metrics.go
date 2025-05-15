@@ -45,6 +45,7 @@ type Recorder struct {
 	walSegmentTotal   *vmm.Counter
 
 	connAccepted *vmm.Counter
+	connRejected *vmm.Counter
 	connActiveN  atomic.Int64
 
 	gcEvictedTotal *vmm.Counter
@@ -87,6 +88,7 @@ func New(cfg *config.Config, log *zap.Logger) (*Recorder, error) {
 	r.walSegmentTotal = r.set.NewCounter(`ararauna_wal_segment_total`)
 
 	r.connAccepted = r.set.NewCounter(`ararauna_conn_accepted_total`)
+	r.connRejected = r.set.NewCounter(`ararauna_conn_rejected_total`)
 	r.set.NewGauge(`ararauna_conn_active`, func() float64 {
 		return float64(r.connActiveN.Load())
 	})

@@ -104,6 +104,13 @@ func (r *Recorder) IncConnAccepted() {
 	r.connAccepted.Inc()
 }
 
+func (r *Recorder) IncConnRejected() {
+	if r == nil {
+		return
+	}
+	r.connRejected.Inc()
+}
+
 func (r *Recorder) IncConnActive() {
 	if r == nil {
 		return

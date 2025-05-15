@@ -8,6 +8,7 @@ import (
 	"ararauna/internal/toolbox"
 	"bufio"
 	"context"
+	"io"
 	"net"
 	"strings"
 	"testing"
@@ -115,4 +116,111 @@ func TestServer_UnknownCommand(t *testing.T) {
 	resp := recv(t, r)
 	assert.Equal(t, parser.KindError, resp.Kind)
 	assert.Contains(t, strings.ToLower(resp.Str), "unknown command")
+}
+
+func TestServer_MaxConnections(t *testing.T) {
+	const limit = 3
+
+	cfg := config.Default()
+	cfg.Server.Port = 0
+	cfg.Server.MaxConnections = limit
+	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Enabled = false
+
+	tb := toolbox.New(cfg, zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	store, err := storage.New(ctx, tb, nil)
+	require.NoError(t, err)
+	h := command.New(tb, store)
+	srv := New(tb, h)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = srv.Start(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	require.Eventually(t, func() bool { return srv.Addr() != nil }, time.Second, 10*time.Millisecond)
+	addr := srv.Addr().String()
+
+	held := make([]net.Conn, 0, limit)
+	for i := 0; i < limit; i++ {
+		c, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		t.Cleanup(func() { c.Close() })
+		held = append(held, c)
+	}
+
+	require.Eventually(t, func() bool {
+		c, err := net.Dial("tcp", addr)
+		if err != nil {
+			return false
+		}
+		defer c.Close()
+		_ = c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		buf, _ := io.ReadAll(c)
+		return strings.Contains(string(buf), "max number of clients reached")
+	}, 2*time.Second, 50*time.Millisecond)
+
+	require.NoError(t, held[0].Close())
+
+	require.Eventually(t, func() bool {
+		c, err := net.Dial("tcp", addr)
+		if err != nil {
+			return false
+		}
+		defer c.Close()
+		w := bufio.NewWriter(c)
+		send(t, w, "PING")
+		_ = c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		v, err := parser.Decode(bufio.NewReader(c))
+		return err == nil && v.Kind == parser.KindSimpleString && v.Str == "PONG"
+	}, 2*time.Second, 50*time.Millisecond)
+}
+
+func TestServer_MaxConnectionsZeroIsUnlimited(t *testing.T) {
+	cfg := config.Default()
+	cfg.Server.Port = 0
+	cfg.Server.MaxConnections = 0
+	cfg.Storage.PartitionsNumber = 4
+	cfg.WAL.Enabled = false
+
+	tb := toolbox.New(cfg, zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	store, err := storage.New(ctx, tb, nil)
+	require.NoError(t, err)
+	h := command.New(tb, store)
+	srv := New(tb, h)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = srv.Start(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	require.Eventually(t, func() bool { return srv.Addr() != nil }, time.Second, 10*time.Millisecond)
+	addr := srv.Addr().String()
+
+	conns := make([]net.Conn, 0, 32)
+	for i := 0; i < 32; i++ {
+		c, err := net.Dial("tcp", addr)
+		require.NoError(t, err)
+		t.Cleanup(func() { c.Close() })
+		conns = append(conns, c)
+	}
+
+	last := conns[len(conns)-1]
+	require.NoError(t, last.SetDeadline(time.Now().Add(2*time.Second)))
+	w := bufio.NewWriter(last)
+	r := bufio.NewReader(last)
+	send(t, w, "PING")
+	assert.Equal(t, parser.SimpleString("PONG"), recv(t, r))
 }

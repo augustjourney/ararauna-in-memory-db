@@ -20,6 +20,7 @@ type Config struct {
 type Server struct {
 	Port            int           `yaml:"port"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
+	MaxConnections  int           `yaml:"max_connections"`
 }
 
 type Storage struct {
@@ -55,6 +56,7 @@ func Default() *Config {
 		Server: Server{
 			Port:            6379,
 			ShutdownTimeout: 5 * time.Second,
+			MaxConnections:  1024,
 		},
 		Storage: Storage{
 			PartitionsNumber: 16,
@@ -109,6 +111,9 @@ func (c *Config) validate() error {
 	}
 	if c.Server.ShutdownTimeout <= 0 {
 		return errors.New("config: server.shutdown_timeout must be > 0")
+	}
+	if c.Server.MaxConnections < 0 {
+		return errors.New("config: server.max_connections must be >= 0 (0 means unlimited)")
 	}
 	if c.WAL.Enabled {
 		if c.WAL.Dir == "" {
