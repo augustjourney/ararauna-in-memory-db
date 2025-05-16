@@ -2,7 +2,7 @@ BINARY := ararauna
 BIN_DIR := bin
 CONFIG  := config.yml
 
-.PHONY: run build test test-race cover tidy fmt vet clean help
+.PHONY: run build test test-race cover tidy fmt vet lint clean help
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,7 @@ help:
 	@echo "  tidy       - go mod tidy"
 	@echo "  fmt        - go fmt ./..."
 	@echo "  vet        - go vet ./..."
+	@echo "  lint       - golangci-lint run ./..."
 	@echo "  clean      - remove $(BIN_DIR)/ and coverage artifacts"
 
 run:
@@ -42,6 +43,9 @@ fmt:
 
 vet:
 	go vet ./...
+
+lint:
+	golangci-lint run ./...
 
 clean:
 	rm -rf $(BIN_DIR) coverage.out coverage.html

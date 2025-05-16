@@ -382,7 +382,7 @@ func (w *Writer) replaySegment(path string, apply func(parser.Value) error) erro
 		return fmt.Errorf("wal: open %s: %w", path, err)
 	}
 
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	r := bufio.NewReader(f)
 

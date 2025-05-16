@@ -1,0 +1,7 @@
+.git/
+bin/
+data/
+*.log
+coverage.out
+coverage.html
+*.md

@@ -50,7 +50,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		_ = ln.Close()
 	}()
 
 	for {
@@ -87,7 +87,7 @@ func (s *Server) Addr() net.Addr {
 }
 
 func (s *Server) rejectConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
 	_, _ = conn.Write([]byte("-ERR max number of clients reached\r\n"))
 }
@@ -95,13 +95,13 @@ func (s *Server) rejectConn(conn net.Conn) {
 func (s *Server) handleConn(ctx context.Context, conn net.Conn) {
 	defer s.sem.Release()
 	defer s.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	s.tb.Metrics.IncConnActive()
 	defer s.tb.Metrics.DecConnActive()
 
 	go func() {
 		<-ctx.Done()
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	reader := bufio.NewReader(conn)

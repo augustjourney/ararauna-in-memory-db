@@ -70,7 +70,7 @@ func New(ctx context.Context, tb *toolbox.Toolbox, w *wal.Writer) (*store, error
 	return s, nil
 }
 
-func (s *store) getShardId(key string) int {
+func (s *store) getShardID(key string) int {
 	h := fnv.New32()
 	h.Write([]byte(key))
 	return int(h.Sum32()) % s.shardsCount
@@ -81,8 +81,8 @@ func (s *store) Get(ctx context.Context, key string) (*Value, error) {
 		return nil, err
 	}
 
-	shardId := s.getShardId(key)
-	shard := s.shards[shardId]
+	shardID := s.getShardID(key)
+	shard := s.shards[shardID]
 	shard.mu.RLock()
 	value, found := shard.data[Key(key)]
 	shard.mu.RUnlock()
@@ -128,8 +128,8 @@ func (s *store) Del(ctx context.Context, key string) (string, error) {
 		return "", err
 	}
 
-	shardId := s.getShardId(key)
-	shard := s.shards[shardId]
+	shardID := s.getShardID(key)
+	shard := s.shards[shardID]
 
 	shard.mu.RLock()
 	_, found := shard.data[Key(key)]
@@ -152,8 +152,8 @@ func (s *store) Del(ctx context.Context, key string) (string, error) {
 }
 
 func (s *store) applySet(key string, value []byte, expiresAt *time.Time) {
-	shardId := s.getShardId(key)
-	shard := s.shards[shardId]
+	shardID := s.getShardID(key)
+	shard := s.shards[shardID]
 
 	shard.mu.Lock()
 	shard.data[Key(key)] = Value{Data: value, ExpiresAt: expiresAt}
@@ -161,8 +161,8 @@ func (s *store) applySet(key string, value []byte, expiresAt *time.Time) {
 }
 
 func (s *store) applyDel(key string) {
-	shardId := s.getShardId(key)
-	shard := s.shards[shardId]
+	shardID := s.getShardID(key)
+	shard := s.shards[shardID]
 
 	shard.mu.Lock()
 	delete(shard.data, Key(key))

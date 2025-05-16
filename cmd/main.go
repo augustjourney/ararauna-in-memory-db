@@ -34,7 +34,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "logger init:", err)
 		os.Exit(1)
 	}
-	defer log.Sync()
+	defer func() { _ = log.Sync() }()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -57,7 +57,7 @@ func main() {
 	store, err := storage.New(ctx, tb, walWriter)
 	if err != nil {
 		log.Error("storage init", zap.Error(err))
-		walWriter.Close()
+		_ = walWriter.Close()
 		return
 	}
 
